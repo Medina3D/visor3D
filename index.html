@@ -155,6 +155,65 @@
             text-align: right;
             margin-top: 2px;
         }
+         
+        /* Estilos para móvil */
+@media (max-width: 768px) {
+    #controls {
+        width: 90%;
+        left: 50%;
+        transform: translateX(-50%);
+        top: auto;
+        bottom: 10px;
+        padding: 8px;
+        display: none; /* Oculto por defecto en móvil */
+    }
+    
+    #lighting-controls {
+        width: 90%;
+        right: auto;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 60px;
+        max-height: 40vh;
+        overflow-y: auto;
+        display: none; /* Oculto por defecto */
+    }
+    
+    .mobile-control-btn {
+        display: block !important;
+        position: fixed;
+        z-index: 1000;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #4a6fa5;
+        color: white;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    
+    #toggleMainBtn {
+        left: 10px;
+        top: 10px;
+    }
+    
+    #toggleLightingBtn {
+        right: 10px;
+        top: 10px;
+    }
+    
+    /* Ocultar botones en desktop */
+    @media (min-width: 769px) {
+        .mobile-control-btn {
+            display: none !important;
+        }
+        #controls, #lighting-controls {
+            display: block !important;
+        }
+    }
+}
     </style>
 </head>
 <body>
@@ -163,9 +222,9 @@
         <input type="file" id="textureInput" accept="image/*">
         <button id="applyBtn">Aplicar Textura</button>
         <button id="resetBtn">Restaurar Original</button>
-        <button id="resetCameraBtn">Posición Cámara</button>
+        <button id="resetCameraBtn">Centrar 3D</button>
         <div class="capture-buttons">
-            <button id="capturePngBtn" class="capture-btn">PNG Transparente</button>
+            <button id="capturePngBtn" class="capture-btn">PNG Sin Fondo</button>
             <button id="captureJpgBtn" class="capture-btn">JPG</button>
         </div>
         <div id="status">Cargando modelo...</div>
@@ -194,15 +253,26 @@
             </div>
             <label for="directionalColor">Color:</label>
             <input type="color" id="directionalColor" class="color-picker" value="#ffffff">
+            
+            <div class="slider-container">
+                <label for="lightPosX">Posición X</label>
+                <input type="range" id="lightPosX" min="-10" max="10" step="0.5" value="3">
+                <div class="value-display"><span id="lightPosXValue">3.0</span></div>
+            </div>
+            <div class="slider-container">
+                <label for="lightPosY">Posición Y</label>
+                <input type="range" id="lightPosY" min="0" max="20" step="0.5" value="10">
+                <div class="value-display"><span id="lightPosYValue">10.0</span></div>
+            </div>
+            <div class="slider-container">
+                <label for="lightPosZ">Posición Z</label>
+                <input type="range" id="lightPosZ" min="-10" max="10" step="0.5" value="5">
+                <div class="value-display"><span id="lightPosZValue">5.0</span></div>
+            </div>
         </div>
         
         <div class="control-group">
             <h4>Materiales</h4>
-            <div class="slider-container">
-                <label for="envMapIntensity">Reflejos</label>
-                <input type="range" id="envMapIntensity" min="0" max="2" step="0.1" value="0.5">
-                <div class="value-display"><span id="envMapIntensityValue">0.5</span></div>
-            </div>
             <div class="slider-container">
                 <label for="roughness">Rugosidad</label>
                 <input type="range" id="roughness" min="0" max="1" step="0.05" value="0.5">
@@ -215,15 +285,6 @@
             <label for="backgroundColor">Color:</label>
             <input type="color" id="backgroundColor" class="color-picker" value="#f0f0f0">
             <button id="transparentBgBtn" class="transparent-btn">Fondo Transparente</button>
-        </div>
-        
-        <div class="control-group">
-            <h4>Sombras</h4>
-            <div class="slider-container">
-                <label for="shadowIntensity">Intensidad</label>
-                <input type="range" id="shadowIntensity" min="0" max="1" step="0.05" value="0.5">
-                <div class="value-display"><span id="shadowIntensityValue">0.50</span></div>
-            </div>
         </div>
         
         <button id="resetLightingBtn" style="margin-top:8px;">Restablecer Valores</button>
@@ -259,9 +320,9 @@
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
         directionalLight.position.set(3, 10, 5);
         directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 1024;
-        directionalLight.shadow.mapSize.height = 1024;
-        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.1;
         directionalLight.shadow.camera.far = 50;
         directionalLight.shadow.bias = -0.001;
         scene.add(directionalLight);
@@ -289,39 +350,22 @@
 
         // 5. Cargar modelo
         loader.load('modelo.glb', function(gltf) {
-    model = gltf.scene;
-    scene.add(model);
-    
-    // ►►► PEGA ESTO DENTRO DEL LOAD ◄◄◄
-    // 1. Activar sombras para todas las partes del modelo
-    model.traverse((node) => {
-        if (node.isMesh) {
-            node.castShadow = true;    // Hace que el objeto PROYECTE sombra
-            node.receiveShadow = true; // Hace que el objeto RECIBA sombras
-            console.log("Sombras activadas para: ", node.name || 'objeto-sin-nombre');
-        }
-    });
-    
-    // 2. Mejorar calidad de sombras
-    directionalLight.shadow.mapSize.width = 2048;  // Más resolución
-    directionalLight.shadow.mapSize.height = 2048;
-    directionalLight.shadow.camera.near = 0.1;
-    directionalLight.shadow.camera.far = 50;
-    directionalLight.shadow.bias = -0.001;
-    
-    model.traverse((node) => {
-        if (node.isMesh) {
-            // Configurar sombras
-            node.castShadow = true;
-            node.receiveShadow = true;
+            model = gltf.scene;
+            scene.add(model);
             
-            // Configurar reflejos en los materiales
-            if (node.material) {
-                node.material.envMap = envTexture;
-                node.material.envMapIntensity = 0.5; // Intensidad inicial
-                node.material.needsUpdate = true;
-            }
-        }
+            // Activar sombras para todas las partes del modelo
+            model.traverse((node) => {
+                if (node.isMesh) {
+                    node.castShadow = true;
+                    node.receiveShadow = true;
+                    
+                    // Configurar reflejos en los materiales
+                    if (node.material) {
+                        node.material.envMap = envTexture;
+                        node.material.envMapIntensity = 0.5;
+                        node.material.needsUpdate = true;
+                    }
+                }
                 
                 // Detección de texturas especiales
                 if (node.isMesh && node.material && node.material.map) {
@@ -540,7 +584,7 @@
             animateCameraReset();
         });
 
-        // 8. Controles de iluminación (CORREGIDOS)
+        // 8. Controles de iluminación
         document.getElementById('ambientIntensity').addEventListener('input', function(e) {
             const value = parseFloat(e.target.value);
             ambientLight.intensity = value;
@@ -561,18 +605,23 @@
             directionalLight.color.set(e.target.value);
         });
 
-        // Control de reflejos (CORREGIDO)
-        document.getElementById('envMapIntensity').addEventListener('input', function(e) {
+        // Control de posición de la luz direccional
+        document.getElementById('lightPosX').addEventListener('input', function(e) {
             const value = parseFloat(e.target.value);
-            if (model) {
-                model.traverse((node) => {
-                    if (node.isMesh && node.material) {
-                        node.material.envMapIntensity = value;
-                        node.material.needsUpdate = true;
-                    }
-                });
-            }
-            document.getElementById('envMapIntensityValue').textContent = value.toFixed(1);
+            directionalLight.position.x = value;
+            document.getElementById('lightPosXValue').textContent = value.toFixed(1);
+        });
+
+        document.getElementById('lightPosY').addEventListener('input', function(e) {
+            const value = parseFloat(e.target.value);
+            directionalLight.position.y = value;
+            document.getElementById('lightPosYValue').textContent = value.toFixed(1);
+        });
+
+        document.getElementById('lightPosZ').addEventListener('input', function(e) {
+            const value = parseFloat(e.target.value);
+            directionalLight.position.z = value;
+            document.getElementById('lightPosZValue').textContent = value.toFixed(1);
         });
 
         document.getElementById('roughness').addEventListener('input', function(e) {
@@ -587,15 +636,6 @@
             }
             document.getElementById('roughnessValue').textContent = value.toFixed(2);
         });
-
-        // Control de sombras (CORREGIDO)
-        document.getElementById('shadowIntensity').addEventListener('input', function(e) {
-    const value = parseFloat(e.target.value);
-    // Ajusta la oscuridad de las sombras
-    directionalLight.shadow.darkness = value;
-    document.getElementById('shadowIntensityValue').textContent = value.toFixed(2);
-});
-
 
         document.getElementById('backgroundColor').addEventListener('input', function(e) {
             scene.background = new THREE.Color(e.target.value);
@@ -614,20 +654,17 @@
             ambientLight.color.set('#ffffff');
             directionalLight.intensity = 0.5;
             directionalLight.color.set('#ffffff');
+            directionalLight.position.set(3, 10, 5);
             
             if (model) {
                 model.traverse((node) => {
                     if (node.isMesh && node.material) {
-                        node.material.envMapIntensity = 0.5;
                         node.material.roughness = 0.5;
-                        node.material.metalness = 0.0;
                         node.material.needsUpdate = true;
                     }
                 });
             }
             
-            directionalLight.shadow.intensity = 0.5;
-            renderer.shadowMap.enabled = true;
             scene.background = originalBackground;
             renderer.setClearAlpha(1);
             
@@ -636,38 +673,90 @@
             document.getElementById('ambientColor').value = '#ffffff';
             document.getElementById('directionalIntensity').value = 0.5;
             document.getElementById('directionalColor').value = '#ffffff';
-            document.getElementById('envMapIntensity').value = 0.5;
             document.getElementById('roughness').value = 0.5;
-            document.getElementById('shadowIntensity').value = 0.5;
             document.getElementById('backgroundColor').value = '#f0f0f0';
+            document.getElementById('lightPosX').value = 3;
+            document.getElementById('lightPosY').value = 10;
+            document.getElementById('lightPosZ').value = 5;
             
             document.getElementById('ambientIntensityValue').textContent = '0.8';
             document.getElementById('directionalIntensityValue').textContent = '0.5';
-            document.getElementById('envMapIntensityValue').textContent = '0.5';
             document.getElementById('roughnessValue').textContent = '0.50';
-            document.getElementById('shadowIntensityValue').textContent = '0.50';
+            document.getElementById('lightPosXValue').textContent = '3.0';
+            document.getElementById('lightPosYValue').textContent = '10.0';
+            document.getElementById('lightPosZValue').textContent = '5.0';
         });
 
-        // 9. Animación y redimensionado - SOLO DEBE HABER UNA FUNCIÓN animate()
-    function animate() {
-        requestAnimationFrame(animate);
-        controls.update();
-        renderer.render(scene, camera);
-    }
-    animate(); // Llamada inicial para iniciar el bucle de animación
-
-    window.addEventListener('resize', function() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-
+        // 9. Animación y redimensionado
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
 
         window.addEventListener('resize', function() {
-            camera.aspect = window.innerWidth / window.innerHeight;
+            const aspect = window.innerWidth / window.innerHeight;
+            
+            // Para cámara ortográfica
+            camera.left = -5 * aspect;
+            camera.right = 5 * aspect;
+            camera.top = 5;
+            camera.bottom = -5;
+            
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+                       // 10. Control para móviles - Versión corregida
+        function setupMobileControls() {
+            const toggleMainBtn = document.getElementById('toggleMainBtn');
+            const toggleLightingBtn = document.getElementById('toggleLightingBtn');
+            const controlsPanel = document.getElementById('controls');
+            const lightingPanel = document.getElementById('lighting-controls');
+            
+            // Solo si los elementos existen
+            if (toggleMainBtn && toggleLightingBtn && controlsPanel && lightingPanel) {
+                // Mostrar/ocultar paneles
+                toggleMainBtn.addEventListener('click', () => {
+                    controlsPanel.style.display = controlsPanel.style.display === 'none' ? 'block' : 'none';
+                    // Ocultar lighting panel cuando se muestra main
+                    if (controlsPanel.style.display === 'block') {
+                        lightingPanel.style.display = 'none';
+                    }
+                });
+                
+                toggleLightingBtn.addEventListener('click', () => {
+                    lightingPanel.style.display = lightingPanel.style.display === 'none' ? 'block' : 'none';
+                    // Ocultar main panel cuando se muestra lighting
+                    if (lightingPanel.style.display === 'block') {
+                        controlsPanel.style.display = 'none';
+                    }
+                });
+                
+                // Ajustar inicialmente para móvil
+                function handleMobileLayout() {
+                    const isMobile = window.innerWidth <= 768;
+                    if (isMobile) {
+                        controlsPanel.style.display = 'none';
+                        lightingPanel.style.display = 'none';
+                    } else {
+                        controlsPanel.style.display = 'block';
+                        lightingPanel.style.display = 'block';
+                    }
+                }
+                
+                // Ejecutar al cargar y al redimensionar
+                window.addEventListener('load', handleMobileLayout);
+                window.addEventListener('resize', handleMobileLayout);
+                handleMobileLayout(); // Inicializar
+            }
+        }
+        
+        // Llamar a la función después de que el DOM esté cargado
+        document.addEventListener('DOMContentLoaded', setupMobileControls);
     </script>
+            <!-- Botones para móvil simplificados -->
+    <button id="toggleMainBtn" class="mobile-control-btn">☰</button>
+    <button id="toggleLightingBtn" class="mobile-control-btn">⚙️</button>
 </body>
 </html>
