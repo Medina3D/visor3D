@@ -223,6 +223,7 @@
         <button id="applyBtn">Aplicar Textura</button>
         <button id="resetBtn">Restaurar Original</button>
         <button id="resetCameraBtn">Centrar 3D</button>
+        <button id="downloadTemplateBtn">Descargar Plantilla</button>
         <div class="capture-buttons">
             <button id="capturePngBtn" class="capture-btn">PNG Sin Fondo</button>
             <button id="captureJpgBtn" class="capture-btn">JPG</button>
@@ -293,21 +294,40 @@
     <div id="loading">Cargando modelo 3D...</div>
 
     <script>
-        // 1. Configuración de Three.js
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf0f0f0);
-        
-        const renderer = new THREE.WebGLRenderer({ 
-            antialias: true,
-            powerPreference: "high-performance",
-            alpha: true
-        });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.outputEncoding = THREE.sRGBEncoding;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        document.body.appendChild(renderer.domElement);
+        // 1. Configuración inicial de Three.js (ORDEN CORRECTO)
+    const renderer = new THREE.WebGLRenderer({ 
+        antialias: true,
+        powerPreference: "high-performance",
+        alpha: true
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
 
+    // 2. Crear escena con fondo temporal
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf0f0f0); // Fondo gris temporal
+
+    // 3. Mostrar estado inicial
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('status').textContent = 'Cargando modelo...';
+
+    // 4. Cargar el fondo (versión simplificada y robusta)
+    new THREE.TextureLoader().load('fondo.jpg', 
+        (texture) => {
+            texture.generateMipmaps = false;
+            texture.minFilter = THREE.LinearFilter;
+            scene.background = texture;
+            console.log("Fondo cargado correctamente");
+        },
+        undefined,
+        (error) => {
+            console.error("Error cargando fondo:", error);
+            // Mantenemos el fondo gris si falla
+        }
+    );
         // Configurar reflejos básicos
         const envTexture = new THREE.TextureLoader().load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABGdBTUEAALGPC/xhBQAAAAlwSFlzAAAOwQAADsEBuJFr7QAAABl0RVh0U29mdHdhcmUAcGFpbnQubmV0IDQuMC4xMzQDW3oAAAAdSURBVFhH7c8xAQAgDABR0/mbO5hAIHf1qV0B+3YH6Yw1oUU7RjEAAAAASUVORK5CYII=');
         envTexture.mapping = THREE.EquirectangularReflectionMapping;
@@ -346,12 +366,12 @@
         const textureLoader = new THREE.TextureLoader();
         const loader = new THREE.GLTFLoader();
         let targetTextures = [];
-        let originalBackground = scene.background.clone();
 
         // 5. Cargar modelo
         loader.load('modelo.glb', function(gltf) {
             model = gltf.scene;
             scene.add(model);
+        
             
             // Activar sombras para todas las partes del modelo
             model.traverse((node) => {
@@ -393,7 +413,7 @@
                         node.material.side = THREE.DoubleSide;
                         node.material.needsUpdate = true;
                     }
-                }
+                }     
             });
             
             document.getElementById('loading').style.display = 'none';
@@ -473,39 +493,90 @@
         }
 
         function captureImage(format) {
-            if (!model) {
-                updateStatus("No hay modelo cargado", true);
-                return;
-            }
-            
-            const currentBackground = scene.background;
-            const currentClearAlpha = renderer.getClearAlpha();
-            
-            if (format === 'png') {
-                scene.background = null;
-                renderer.setClearAlpha(0);
-            }
-            
-            renderer.render(scene, camera);
-            
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `captura-${timestamp}.${format}`;
-            const dataUrl = renderer.domElement.toDataURL(`image/${format}`);
-            
-            if (format === 'png') {
-                scene.background = currentBackground;
-                renderer.setClearAlpha(currentClearAlpha);
-            }
-            
-            const link = document.createElement('a');
-            link.href = dataUrl;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            updateStatus(`Captura guardada: ${filename}`);
-        }
+    if (!model) {
+        updateStatus("No hay modelo cargado", true);
+        return;
+    }
+
+function updateStatus(message, isError = false) {
+    const statusElement = document.getElementById('status');
+    statusElement.textContent = message;
+    statusElement.style.color = isError ? 'red' : 'inherit';
+}
+
+    // Guardar configuración actual
+    const currentBackground = scene.background;
+    const currentClearAlpha = renderer.getClearAlpha();
+    const originalSize = {
+        width: renderer.domElement.width,
+        height: renderer.domElement.height
+    };
+    
+    // Configurar para captura de alta calidad
+    const scaleFactor = 2; // Factor de escala para mejorar calidad
+    const tempWidth = window.innerWidth * scaleFactor;
+    const tempHeight = window.innerHeight * scaleFactor;
+    
+    // Ajustar renderizador temporalmente
+    renderer.setSize(tempWidth, tempHeight, false);
+    camera.aspect = tempWidth / tempHeight;
+    
+    if (camera.isOrthographicCamera) {
+        camera.left = -5 * camera.aspect;
+        camera.right = 5 * camera.aspect;
+    }
+    
+    camera.updateProjectionMatrix();
+    
+    if (format === 'png') {
+        scene.background = null;
+        renderer.setClearAlpha(0);
+    }
+    
+    // Renderizar con nueva configuración
+    renderer.render(scene, camera);
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `captura-${timestamp}.${format}`;
+    
+    // Crear canvas temporal para máxima calidad
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = tempWidth;
+    tempCanvas.height = tempHeight;
+    const ctx = tempCanvas.getContext('2d');
+    ctx.drawImage(renderer.domElement, 0, 0, tempWidth, tempHeight);
+    
+    let dataUrl;
+    if (format === 'png') {
+        dataUrl = tempCanvas.toDataURL('image/png', 1.0); // Calidad máxima para PNG
+    } else {
+        dataUrl = tempCanvas.toDataURL('image/jpeg', 0.95); // 95% calidad para JPG
+    }
+    
+    // Restaurar configuración original
+    renderer.setSize(originalSize.width, originalSize.height);
+    camera.aspect = originalSize.width / originalSize.height;
+    
+    if (camera.isOrthographicCamera) {
+        camera.left = -5 * camera.aspect;
+        camera.right = 5 * camera.aspect;
+    }
+    
+    camera.updateProjectionMatrix();
+    scene.background = currentBackground;
+    renderer.setClearAlpha(currentClearAlpha);
+    renderer.render(scene, camera);
+    
+    // Descargar la imagen
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    updateStatus(`Captura guardada: ${filename}`);
+}
 
         // 7. Manejadores de eventos
         document.getElementById('applyBtn').addEventListener('click', function() {
@@ -584,6 +655,16 @@
             animateCameraReset();
         });
 
+        document.getElementById('downloadTemplateBtn').addEventListener('click', function() {
+            const link = document.createElement('a');
+            link.href = 'plantilla.pdf';
+            link.download = 'plantilla.pdf';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            updateStatus("Plantilla descargada");
+        });
+
         // 8. Controles de iluminación
         document.getElementById('ambientIntensity').addEventListener('input', function(e) {
             const value = parseFloat(e.target.value);
@@ -638,12 +719,14 @@
         });
 
         document.getElementById('backgroundColor').addEventListener('input', function(e) {
+            backgroundTexture = null; // Eliminar textura de fondo
             scene.background = new THREE.Color(e.target.value);
             originalBackground = scene.background.clone();
             renderer.setClearAlpha(1);
         });
 
         document.getElementById('transparentBgBtn').addEventListener('click', function() {
+            backgroundTexture = null; // Eliminar textura de fondo
             scene.background = null;
             renderer.setClearAlpha(0);
         });
@@ -654,7 +737,10 @@
             ambientLight.color.set('#ffffff');
             directionalLight.intensity = 0.5;
             directionalLight.color.set('#ffffff');
-            directionalLight.position.set(3, 10, 5);
+            directionalLight.position.set(3, 10, 5);    
+            backgroundTexture = null;
+            scene.background = originalBackground;
+            renderer.setClearAlpha(1);
             
             if (model) {
                 model.traverse((node) => {
@@ -706,6 +792,7 @@
             
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            
         });
                        // 10. Control para móviles - Versión corregida
         function setupMobileControls() {
