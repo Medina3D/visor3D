@@ -356,6 +356,19 @@ const backLight = new THREE.DirectionalLight(0xffffff, 0.4);
 backLight.position.set(0, 3, -3); // Posición trasera
 scene.add(backLight);
 
+// Configurar luces para que sean estáticas (AÑADIR ESTO)
+mainLight.target.position.set(0, 0, 0);
+scene.add(mainLight.target);
+mainLight.matrixAutoUpdate = false;
+
+fillLight.target.position.set(0, 0, 0);
+scene.add(fillLight.target);
+fillLight.matrixAutoUpdate = false;
+
+backLight.target.position.set(0, 0, 0);
+scene.add(backLight.target);
+backLight.matrixAutoUpdate = false;
+
         // 3. Cámara y controles
         const aspect = window.innerWidth / window.innerHeight;
         const camera = new THREE.OrthographicCamera(
@@ -712,8 +725,8 @@ function updateStatus(message, isError = false) {
         // Control de posición de la luz direccional (VERSIÓN CORREGIDA)
         document.getElementById('lightPosX').addEventListener('input', function(e) {
             const value = parseFloat(e.target.value);
-            mainLight.position.x = value; // Cambiado de directionalLight a mainLight
-            fillLight.position.x = -value; // Luz de relleno en posición opuesta
+            mainLight.position.x = value;
+            mainLight.updateMatrix(); // Añade esta línea
             document.getElementById('lightPosXValue').textContent = value.toFixed(1);
         });
 
@@ -805,6 +818,9 @@ function updateStatus(message, isError = false) {
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            mainLight.updateMatrix();
+        fillLight.updateMatrix();
+        backLight.updateMatrix();
             renderer.render(scene, camera);
         }
         animate();
