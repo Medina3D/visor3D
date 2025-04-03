@@ -238,8 +238,8 @@
             <h4>Luz Ambiental</h4>
             <div class="slider-container">
                 <label for="ambientIntensity">Intensidad</label>
-                <input type="range" id="ambientIntensity" min="0" max="2" step="0.1" value="0.6">
-                <div class="value-display"><span id="ambientIntensityValue">0.6</span></div>
+                <input type="range" id="ambientIntensity" min="0" max="2" step="0.1" value="0.2">
+                <div class="value-display"><span id="ambientIntensityValue">0.2</span></div>
             </div>
             <label for="ambientColor">Color:</label>
             <input type="color" id="ambientColor" class="color-picker" value="#ffffff">
@@ -275,9 +275,9 @@
         <div class="control-group">
             <h4>Materiales</h4>
             <div class="slider-container">
-                <label for="roughness">Rugosidad</label>
-                <input type="range" id="roughness" min="0" max="1" step="0.05" value="0.5">
-                <div class="value-display"><span id="roughnessValue">0.50</span></div>
+                <label for="roughness">Reflejos</label>
+                <input type="range" id="roughness" min="0" max="3" step="0.05" value="2">
+                <div class="value-display"><span id="roughnessValue">2</span></div>
             </div>
         </div>
         
@@ -328,24 +328,33 @@
             // Mantenemos el fondo gris si falla
         }
     );
-        // Configurar reflejos básicos
-        const envTexture = new THREE.TextureLoader().load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABGdBTUEAALGPC/xhBQAAAAlwSFlzAAAOwQAADsEBuJFr7QAAABl0RVh0U29mdHdhcmUAcGFpbnQubmV0IDQuMC4xMzQDW3oAAAAdSURBVFhH7c8xAQAgDABR0/mbO5hAIHf1qV0B+3YH6Yw1oUU7RjEAAAAASUVORK5CYII=');
-        envTexture.mapping = THREE.EquirectangularReflectionMapping;
-        scene.environment = envTexture;
+        // Configurar reflejos básicos (MANTIENES ESTO IGUAL)
+const envTexture = new THREE.TextureLoader().load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABGdBTUEAALGPC/xhBQAAAAlwSFlzAAAOwQAADsEBuJFr7QAAABl0RVh0U29mdHdhcmUAcGFpbnQubmV0IDQuMC4xMzQDW3oAAAAdSURBVFhH7c8xAQAgDABR0/mbO5hAIHf1qV0B+3YH6Yw1oUU7RjEAAAAASUVORK5CYII=');
+envTexture.mapping = THREE.EquirectangularReflectionMapping;
+scene.environment = envTexture;
 
-        // 2. Sistema de iluminación
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-        directionalLight.position.set(3, 10, 5);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        directionalLight.shadow.camera.near = 0.1;
-        directionalLight.shadow.camera.far = 50;
-        directionalLight.shadow.bias = -0.001;
-        scene.add(directionalLight);
+// ===== NUEVO SISTEMA DE ILUMINACIÓN ===== //
+// 1. Eliminar luces existentes (importante)
+scene.children = scene.children.filter(child => !(child instanceof THREE.Light));
+
+// 2. Luz ambiente mínima (solo para evitar negros puros)
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.15); // Muy baja intensidad
+scene.add(ambientLight);
+
+// 3. Luz frontal principal (sin sombras para suavizar)
+const mainLight = new THREE.DirectionalLight(0xffffff, 0.9);
+mainLight.position.set(3, 5, 2); // Posición frontal-alta
+scene.add(mainLight);
+
+// 4. Luz lateral de relleno (ilumina costados)
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
+fillLight.position.set(-3, 3, 2); // Posición opuesta a la principal
+scene.add(fillLight);
+
+// 5. Luz trasera (evita silueta oscura)
+const backLight = new THREE.DirectionalLight(0xffffff, 0.4);
+backLight.position.set(0, 3, -3); // Posición trasera
+scene.add(backLight);
 
         // 3. Cámara y controles
         const aspect = window.innerWidth / window.innerHeight;
@@ -376,16 +385,28 @@
             // Activar sombras para todas las partes del modelo
             model.traverse((node) => {
                 if (node.isMesh) {
-                    node.castShadow = true;
-                    node.receiveShadow = true;
-                    
-                    // Configurar reflejos en los materiales
-                    if (node.material) {
-                        node.material.envMap = envTexture;
-                        node.material.envMapIntensity = 0.5;
-                        node.material.needsUpdate = true;
-                    }
-                }
+        node.castShadow = false; // Desactivamos sombras para telas
+        node.receiveShadow = false;
+        
+        if (node.material) {
+            // Configuración ANTI-PLÁSTICO para telas
+            node.material.envMap = envTexture;
+            node.material.envMapIntensity = 0.1; // Reflejos casi invisibles
+            node.material.roughness = 2;       // Máximo mate
+            node.material.metalness = 0.0;        // Cero metal
+            
+            // Opcional: si el material lo soporta
+            if ('sheen' in node.material) {
+                node.material.sheen = 0.1;        // Leve brillo textil
+                node.material.sheenRoughness = 0.9;
+            }
+            
+            node.material.needsUpdate = true;
+            
+            // Corrección para doble cara
+            node.material.side = THREE.DoubleSide;
+        }
+    }
                 
                 // Detección de texturas especiales
                 if (node.isMesh && node.material && node.material.map) {
@@ -733,7 +754,7 @@ function updateStatus(message, isError = false) {
 
         document.getElementById('resetLightingBtn').addEventListener('click', function() {
             // Restaurar valores por defecto
-            ambientLight.intensity = 0.8;
+            ambientLight.intensity = 0.2;
             ambientLight.color.set('#ffffff');
             directionalLight.intensity = 0.5;
             directionalLight.color.set('#ffffff');
@@ -745,7 +766,7 @@ function updateStatus(message, isError = false) {
             if (model) {
                 model.traverse((node) => {
                     if (node.isMesh && node.material) {
-                        node.material.roughness = 0.5;
+                        node.material.roughness = 2;
                         node.material.needsUpdate = true;
                     }
                 });
@@ -755,19 +776,19 @@ function updateStatus(message, isError = false) {
             renderer.setClearAlpha(1);
             
             // Actualizar controles
-            document.getElementById('ambientIntensity').value = 0.6;
+            document.getElementById('ambientIntensity').value = 0.2;
             document.getElementById('ambientColor').value = '#ffffff';
             document.getElementById('directionalIntensity').value = 0.5;
             document.getElementById('directionalColor').value = '#ffffff';
-            document.getElementById('roughness').value = 0.5;
+            document.getElementById('roughness').value = 2.0;
             document.getElementById('backgroundColor').value = '#f0f0f0';
             document.getElementById('lightPosX').value = 3;
             document.getElementById('lightPosY').value = 10;
             document.getElementById('lightPosZ').value = 5;
             
-            document.getElementById('ambientIntensityValue').textContent = '0.6';
+            document.getElementById('ambientIntensityValue').textContent = '0.2';
             document.getElementById('directionalIntensityValue').textContent = '0.5';
-            document.getElementById('roughnessValue').textContent = '0.50';
+            document.getElementById('roughnessValue').textContent = '2.0';
             document.getElementById('lightPosXValue').textContent = '3.0';
             document.getElementById('lightPosYValue').textContent = '10.0';
             document.getElementById('lightPosZValue').textContent = '5.0';
