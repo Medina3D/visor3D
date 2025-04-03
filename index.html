@@ -367,6 +367,7 @@ scene.add(backLight);
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
+        controls.addEventListener('change', () => { camera.updateMatrixWorld(); });
         controls.enableZoom = true;
         controls.zoomSpeed = 1.0;
 
@@ -699,7 +700,7 @@ function updateStatus(message, isError = false) {
 
         document.getElementById('directionalIntensity').addEventListener('input', function(e) {
             const value = parseFloat(e.target.value);
-            directionalLight.intensity = value;
+            mainLight.intensity = value; // Cambiado de directionalLight a mainLight
             document.getElementById('directionalIntensityValue').textContent = value.toFixed(1);
         });
 
@@ -708,21 +709,25 @@ function updateStatus(message, isError = false) {
         });
 
         // Control de posición de la luz direccional
+        // Control de posición de la luz direccional (VERSIÓN CORREGIDA)
         document.getElementById('lightPosX').addEventListener('input', function(e) {
             const value = parseFloat(e.target.value);
-            directionalLight.position.x = value;
+            mainLight.position.x = value; // Cambiado de directionalLight a mainLight
+            fillLight.position.x = -value; // Luz de relleno en posición opuesta
             document.getElementById('lightPosXValue').textContent = value.toFixed(1);
         });
 
         document.getElementById('lightPosY').addEventListener('input', function(e) {
             const value = parseFloat(e.target.value);
-            directionalLight.position.y = value;
+            mainLight.position.y = value;
+            fillLight.position.y = value * 0.6; // Luz de relleno más baja
             document.getElementById('lightPosYValue').textContent = value.toFixed(1);
         });
 
         document.getElementById('lightPosZ').addEventListener('input', function(e) {
             const value = parseFloat(e.target.value);
-            directionalLight.position.z = value;
+            mainLight.position.z = value;
+            fillLight.position.z = value * 0.7; // Luz de relleno más cercana
             document.getElementById('lightPosZValue').textContent = value.toFixed(1);
         });
 
@@ -754,6 +759,8 @@ function updateStatus(message, isError = false) {
 
         document.getElementById('resetLightingBtn').addEventListener('click', function() {
             // Restaurar valores por defecto
+            mainLight.position.set(3, 5, 2); // Posición inicial de mainLight
+            fillLight.position.set(-3, 3, 1.4); // Posición inicial de fillLight
             ambientLight.intensity = 0.2;
             ambientLight.color.set('#ffffff');
             directionalLight.intensity = 0.5;
@@ -783,15 +790,15 @@ function updateStatus(message, isError = false) {
             document.getElementById('roughness').value = 2.0;
             document.getElementById('backgroundColor').value = '#f0f0f0';
             document.getElementById('lightPosX').value = 3;
-            document.getElementById('lightPosY').value = 10;
-            document.getElementById('lightPosZ').value = 5;
+            document.getElementById('lightPosY').value = 5;
+            document.getElementById('lightPosZ').value = 2;
             
             document.getElementById('ambientIntensityValue').textContent = '0.2';
             document.getElementById('directionalIntensityValue').textContent = '0.5';
             document.getElementById('roughnessValue').textContent = '2.0';
-            document.getElementById('lightPosXValue').textContent = '3.0';
-            document.getElementById('lightPosYValue').textContent = '10.0';
-            document.getElementById('lightPosZValue').textContent = '5.0';
+            ddocument.getElementById('lightPosXValue').textContent = '3.0';
+            document.getElementById('lightPosYValue').textContent = '5.0';
+            document.getElementById('lightPosZValue').textContent = '2.0';
         });
 
         // 9. Animación y redimensionado
